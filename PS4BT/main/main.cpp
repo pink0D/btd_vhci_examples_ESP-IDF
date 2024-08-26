@@ -13,6 +13,7 @@ uint8_t oldL2Value, oldR2Value;
 
 static const char *LOG_TAG = "main";
 
+// print controller status
 void ps4_print() {
     if (PS4.connected()) {
         if (PS4.getAnalogHat(LeftHatX) > 137 || PS4.getAnalogHat(LeftHatX) < 117 || PS4.getAnalogHat(LeftHatY) > 137 || PS4.getAnalogHat(LeftHatY) < 117 || PS4.getAnalogHat(RightHatX) > 137 || PS4.getAnalogHat(RightHatX) < 117 || PS4.getAnalogHat(RightHatY) > 137 || PS4.getAnalogHat(RightHatY) < 117) {
@@ -100,9 +101,9 @@ void ps4_print() {
 
 void ps4_loop_task(void *task_params) {
     while (1) { 
-        btd_vhci_mutex_lock();
-        ps4_print();
-        btd_vhci_mutex_unlock();
+        btd_vhci_mutex_lock();      // lock mutex so controller's data is not updated meanwhile
+        ps4_print();                // print PS4 status
+        btd_vhci_mutex_unlock();    // unlock mutex
         vTaskDelay(1);
     }
 }
@@ -111,6 +112,7 @@ extern "C" void app_main(void)
 {
     esp_err_t ret;
 
+    // initialize flash
     ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -118,14 +120,17 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK( ret );
 
+    // initilize the library
     ret = btd_vhci_init();
     if (ret != ESP_OK) {
         ESP_LOGE(LOG_TAG, "BTD init error!");
     }
     ESP_ERROR_CHECK( ret );
 
+    // run example code
     xTaskCreatePinnedToCore(ps4_loop_task,"ps4_loop_task",10*1024,NULL,2,NULL,1);
 
+    // run auto connect task
     btd_vhci_autoconnect(&PS4);
 
     while (1) {       
